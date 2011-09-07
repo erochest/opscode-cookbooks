@@ -26,6 +26,7 @@ when "debian"
   end
 
   set[:postgresql][:dir] = "/etc/postgresql/#{node[:postgresql][:version]}/main"
+  set[:postgresql][:servicename] = "postgresql-#{default[:postgresql][:version]}"
 
 when "ubuntu"
 
@@ -36,6 +37,7 @@ when "ubuntu"
   end
 
   set[:postgresql][:dir] = "/etc/postgresql/#{node[:postgresql][:version]}/main"
+  set[:postgresql][:servicename] = 'postgresql'
 
 when "fedora"
 
