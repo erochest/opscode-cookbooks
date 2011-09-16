@@ -37,7 +37,11 @@ when "ubuntu"
   end
 
   set[:postgresql][:dir] = "/etc/postgresql/#{node[:postgresql][:version]}/main"
-  set[:postgresql][:servicename] = 'postgresql'
+  if platform_version.to_f >= 11.04
+    set[:postgresql][:servicename] = 'postgresql'
+  else
+    set[:postgresql][:servicename] = "postgresql-#{default[:postgresql][:version]}"
+  end
 
 when "fedora"
 
