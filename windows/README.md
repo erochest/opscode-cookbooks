@@ -15,6 +15,16 @@ Platform
 * Windows 7
 * Windows Server 2008 (R1, R2)
 
+Cookbooks
+---------
+
+* chef_handler (`windows::reboot_handler` leverages the chef_handler LWRP)
+
+Attributes
+==========
+
+* `node['windows']['allow_pending_reboots']` - used to configure the `WindowsRebootHandler` (via the `windows::reboot_handler` recipe) to act on pending reboots. default is true (ie act on pending reboots).  The value of this attribute only has an effect if the `windows::reboot_handler` is in a node's run list.
+
 Resource/Provider
 =================
 
@@ -36,9 +46,46 @@ Resource/Provider
   windows_auto_run 'BGINFO' do
     program "C:/Sysinternals/bginfo.exe"
     args "\"C:/Sysinternals/Config.bgi\" /NOLICPROMPT /TIMER:0"
-    not_if { Registry.value_exists?(Windows::KeyHelper::AUTO_RUN_KEY, 'BGINFO') }
+    not_if { Registry.value_exists?(AUTO_RUN_KEY, 'BGINFO') }
     action :create
   end
+
+
+`windows_batch`
+------------
+Execute a batch script using the cmd.exe interpreter (much like the script resources for bash, csh, powershell, perl, python and ruby). A temporary file is created and executed like other script resources, rather than run inline. By their nature, Script resources are not idempotent, as they are completely up to the user's imagination. Use the `not_if` or `only_if` meta parameters to guard the resource for idempotence.
+
+### Actions
+
+- :run: run the batch file
+
+### Attribute Parameters
+
+- command: name attribute. Name of the command to execute.
+- code: quoted string of code to execute.
+- creates: a file this command creates - if the file exists, the command will not be run.
+- cwd: current working directory to run the command from.
+- flags: command line flags to pass to the interpreter when invoking.
+- user: A user name or user ID that we should change to before running this command.
+- group: A group name or group ID that we should change to before running this command.
+
+### Examples
+
+    windows_batch "unzip_and_move_ruby" do
+      code <<-EOH
+      7z.exe x #{Chef::Config[:file_cache_path]}/ruby-1.8.7-p352-i386-mingw32.7z  -oC:\\source -r -y
+      xcopy C:\\source\\ruby-1.8.7-p352-i386-mingw32 C:\\ruby /e /y
+      EOH
+    end
+    
+    windows_batch "echo some env vars" do
+      code <<-EOH
+      echo %TEMP%
+      echo %SYSTEMDRIVE%
+      echo %PATH%
+      echo %WINDIR%
+      EOH
+    end
 
 
 `windows_feature`
@@ -176,7 +223,37 @@ For maximum flexibility the `source` attribute supports both remote and local in
     windows_package "7-Zip 9.20 (x64 edition)" do
       action :remove
     end
-    
+
+
+`windows_reboot`
+------------------
+
+Sets required data in the node's run_state to notify `WindowsRebootHandler` a reboot is requested.  If Chef run completes successfully a reboot will occur if the `WindowsRebootHandler` is properly registered as a report handler.  As an action of `:request` will cause a node to reboot every Chef run, this resource is usually notified by other resources...ie restart node after a package is installed (see example below).
+
+### Actions
+- :request: requests a reboot at completion of successful Cher run.  requires `WindowsRebootHandler` to be registered as a report handler.
+- :cancel: remove reboot request from node.run_state.  this will cancel *ALL* previously requested reboots as this is a binary state.
+
+### Attribute Parameters
+- :timeout: Name attribute. timeout delay in seconds to wait before proceeding with the requested reboot. default is 60 seconds
+- :reason: comment on the reason for the reboot. default is 'Opscode Chef initiated reboot'
+
+### Examples
+
+    # if the package installs, schedule a reboot at end of chef run
+    windows_reboot 60 do
+      reason 'cause chef said so'
+      action :nothing
+    end
+    windows_package 'some_package' do
+      action :install
+      notifies :request, 'windows_reboot[60]'
+    end
+
+    # cancel the previously requested reboot
+    windows_reboot 60 do
+      action :cancel
+    end
 
 `windows_registry`
 -----------------
@@ -217,9 +294,9 @@ Creates and modifies Windows registry keys.
     
 ### Library Methods
 
-    Registry::value_exists?('HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run','BGINFO')
-    Registry::key_exists?('HKLM\SOFTWARE\Microsoft')
-    BgInfo = Registry::get_value('HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run','BGINFO')
+    Registry.value_exists?('HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run','BGINFO')
+    Registry.key_exists?('HKLM\SOFTWARE\Microsoft')
+    BgInfo = Registry.get_value('HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run','BGINFO')
 
 
 'windows_path'
@@ -227,7 +304,6 @@ Creates and modifies Windows registry keys.
 
 ### Actions
 - :add: Add an item to the system path
-- :remove: Remove an item from the system path
 
 ### Attribute Parameters
 - :path: Name attribute. The name of the value to add to the system path
@@ -237,11 +313,6 @@ Creates and modifies Windows registry keys.
     #Add Sysinternals to the system path
     windows_path 'C:\Sysinternals' do
       action :add
-    end
-    
-    #Remove Sysinternals from the system path
-    windows_path 'C:\Sysinternals' do
-      action :remove
     end
 
 
@@ -276,15 +347,45 @@ Most version of Windows do not ship with native cli utility for managing compres
     end
 
 
+Exception/Report Handlers
+=========================
+
+`WindowsRebootHandler`
+----------------------
+
+Required reboots are a necessary evil of configuring and managing Windows nodes.  This report handler (ie fires at the end of successful Chef runs) acts on requested (Chef initiated) or pending (as determined by the OS per configuration action we performed) reboots.  The `allow_pending_reboots` initialization argument should be set to false if you do not want the handler to automatically reboot a node if it has been determined a reboot is pending.  Reboots can still be requested explicitly via the `windows_reboot` LWRP.
+
+## Initialization Arguments
+
+- allow_pending_reboots: indicator on whether the handler should act on a the Window's 'pending reboot' state. default is true
+- timeout: timeout delay in seconds to wait before proceeding with the reboot. default is 60 seconds
+- reason:  comment on the reason for the reboot. default is 'Opscode Chef initiated reboot'
+
 Usage
 =====
 
-Just place an explicit dependency on this cookbook (using depends in the cookbook's metadata.rb) from any cookbook where you would like to use these Windows-specific resources.
+Just place an explicit dependency on this cookbook (using depends in the cookbook's metadata.rb) from any cookbook where you would like to use the Windows-specific resources/providers that ship with this cookbook.
 
 default
 -------
 
-Convenience recipe that installs many useful supporting Windows gems.
+Convenience recipe that installs supporting gems for many of the resources/providers that ship with this cookbook.
+
+reboot_handler
+--------------
+
+Leverages the `chef_handler` LWRP to register the `WindowsRebootHandler` report handler that ships as part of this cookbook. By default this handler is set to automatically act on pending reboots.  If you would like to change this behavior override `node['windows']['allow_pending_reboots']` and set the value to false.  For example:
+
+    % cat roles/base.rb
+    name "base"
+    description "base role"
+    override_attributes(
+      "windows" => {
+        "allow_pending_reboots" => false
+      }
+    )
+
+This will still allow a reboot to be explicitly requested via the `windows_reboot` LWRP.
 
 Changes/Roadmap
 ===============
@@ -295,6 +396,29 @@ Changes/Roadmap
 * package installation location via a `target_dir` attribute.
 * [COOK-666] windows_package should support CoApp packages
 * windows_registry :force_modify action should use RegNotifyChangeKeyValue from WinAPI
+* WindowsRebootHandler/windows_reboot LWRP should support kicking off subsequent chef run on reboot.
+
+## v1.2.4
+
+* windows_package - catch Win32::Registry::Error that pops up when searching certain keys
+
+## v1.2.2
+
+* combined numerous helper libarires for easier sharing across libaries/LWRPs
+* renamed Chef::Provider::WindowsFeature::Base file to the more descriptive feature_base.rb
+* refactored windows_path LWRP
+  * :add action should MODIFY the the underlying ENV variable (vs CREATE)
+  * deleted greedy :remove action until it could be made more idempotent
+* added a windows_batch resource/provider for running batch scripts remotely
+
+## v1.2.0
+
+* [COOK-745] gracefully handle required server restarts on Windows platform
+  * WindowsRebootHandler for requested and pending reboots
+  * windows_reboot LWRP for requesting (receiving notifies) reboots
+  * reboot_handler recipe for enabling WindowsRebootHandler as a report handler
+* [COOK-714] Correct initialize misspelling
+* RegistryHelper - new get_values method which returns all values for a particular key.
 
 ## v1.0.8
 

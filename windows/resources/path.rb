@@ -18,11 +18,11 @@
 # limitations under the License.
 #
 
-def initianize(name,run_context=nil)
+def initialize(name,run_context=nil)
   super
   @action = :add
 end
 
-actions :add, :remove
+actions :add
 
 attribute :path, :kind_of => String, :name_attribute => true
