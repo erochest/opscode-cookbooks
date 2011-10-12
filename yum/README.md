@@ -8,6 +8,11 @@ Based on the work done by Eric Wolfe and Charles Duffy on the yumrepo cookbook. 
 Changes
 =======
 
+## v0.5.0:
+
+* COOK-675: add recipe for handling EPEL repository
+* COOK-722: add recipe for handling IUS repository
+
 ## v.0.1.2:
 
 * Remove yum update in default recipe, that doesn't update caches, it updates packages installed.
@@ -20,6 +25,7 @@ Attributes
 ==========
 
 * `node['yum']['epel_release']` - Set the epel release version based on `node['platform_version']`.
+* `node['yum']['ius_release']` - Set the IUS release to install.
 
 Recipes
 =======
@@ -36,6 +42,13 @@ epel
 ----
 
 Installs the EPEL repository via RPM. Uses the `node['yum']['epel_release']` attribute to select the right version of the repository package to install. Also uses the node's platform version (as an integer) for the major release of EL.
+
+ius
+----
+
+Installs the [IUS Community repositories](http://iuscommunity.org/Repos) via RPM. Uses the `node['yum']['ius_release']` attribute to select the right versino of the package to install.
+
+The IUS repository requires EPEL, and the recipe includes `yum::epel` to install this.
 
 Resources/Providers
 ===================
@@ -116,11 +129,11 @@ License and Author
 ==================
 
 Author:: Eric G. Wolfe
-
-Copyright:: 2010-2011
-
 Author:: Matt Ray (<matt@opscode.com>)
+Author:: Joshua Timberman (<joshua@opscode.com>)
 
+Copyright:: 2010 Tippr Inc.
+Copyright:: 2011 Eric G. Wolfe
 Copyright:: 2011 Opscode, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
