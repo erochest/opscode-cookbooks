@@ -27,7 +27,19 @@ include_recipe "apache2::mod_rewrite"
 include_recipe "nagios::client"
 
 sysadmins = search(:users, 'groups:sysadmin')
+
 nodes = search(:node, "hostname:[* TO *] AND chef_environment:#{node.chef_environment}")
+
+begin
+  services = search(:nagios_services, '*:*')
+rescue Net::HTTPServerException
+  Chef::Log.info("Search for nagios_services data bag failed, so we'll just move on.")
+end
+
+if services.nil? || services.empty?
+  Chef::Log.info("No services returned from data bag search.")
+  services = Array.new
+end
 
 if nodes.empty?
   Chef::Log.info("No nodes returned from search, using this node so hosts.cfg has data")
@@ -56,12 +68,6 @@ else
 end
 
 include_recipe "nagios::server_#{node['nagios']['server']['install_method']}"
-
-service "nagios" do
-  service_name node['nagios']['server']['service_name']
-  supports :status => true, :restart => true, :reload => true
-  action [ :enable, :start ]
-end
 
 nagios_conf "nagios" do
   config_subdir false
@@ -113,6 +119,23 @@ apache_site "000-default" do
   enable false
 end
 
+directory "#{node['nagios']['conf_dir']}/certificates" do
+  owner node['apache']['user']
+  group node['apache']['user']
+  mode "700"
+end
+
+bash "Create SSL Certificates" do
+  cwd "#{node['nagios']['conf_dir']}/certificates"
+  code <<-EOH
+  umask 077
+  openssl genrsa 2048 > nagios-server.key
+  openssl req -subj "#{node['nagios']['ssl_req']}" -new -x509 -nodes -sha1 -days 3650 -key nagios-server.key > nagios-server.crt
+  cat nagios-server.key nagios-server.crt > nagios-server.pem
+  EOH
+  not_if { ::File.exists?("#{node['nagios']['conf_dir']}/certificates/nagios-server.pem") }
+end
+
 template "#{node['apache']['dir']}/sites-available/nagios3.conf" do
   source "apache2.conf.erb"
   mode 0644
@@ -130,12 +153,19 @@ apache_site "nagios3.conf"
   end
 end
 
-%w{ commands templates timeperiods}.each do |conf|
+%w{ templates timeperiods}.each do |conf|
   nagios_conf conf
 end
 
+nagios_conf "commands" do
+  variables :services => services
+end
+
 nagios_conf "services" do
-  variables :service_hosts => service_hosts
+  variables(
+    :service_hosts => service_hosts,
+    :services => services
+  )
 end
 
 nagios_conf "contacts" do
@@ -148,4 +178,10 @@ end
 
 nagios_conf "hosts" do
   variables :nodes => nodes
+end
+
+service "nagios" do
+  service_name node['nagios']['server']['service_name']
+  supports :status => true, :restart => true, :reload => true
+  action [ :enable, :start ]
 end
