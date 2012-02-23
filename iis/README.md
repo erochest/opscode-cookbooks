@@ -54,7 +54,7 @@ Allows easy management of IIS virtual sites (ie vhosts).
 - product_id: name attribute. Specifies the ID of a product to install.
 - accept_eula: specifies that WebpiCmdline should Auto-Accept Eula’s. default is false.
 
-- site_name: name attribute. 
+- site_name: name attribute.
 - site_id: . if not given IIS generates a unique ID for the site
 - path: IIS will create a root application and a root virtual directory mapped to this specified local path
 - protocol: http protocol type the site should respond to. valid values are :http, :https. default is :http
@@ -67,8 +67,8 @@ Allows easy management of IIS virtual sites (ie vhosts).
     iis_site 'Default Web Site' do
       action [:stop, :delete]
     end
-    
-    # create and start a new site that maps to 
+
+    # create and start a new site that maps to
     # the physical location C:\inetpub\wwwroot\testfu
     iis_site 'Testfu Site' do
       protocol :http
@@ -76,7 +76,7 @@ Allows easy management of IIS virtual sites (ie vhosts).
       path "#{node['iis']['docroot']}/testfu"
       action [:add,:start]
     end
-    
+
     # do the same but map to testfu.opscode.com domain
     iis_site 'Testfu Site' do
       protocol :http
@@ -85,6 +85,33 @@ Allows easy management of IIS virtual sites (ie vhosts).
       host_header "testfu.opscode.com"
       action [:add,:start]
     end
+
+iis\_pool
+---------
+Creates an application pool in IIS.
+
+### Actions
+
+- :add: - add a new application pool
+- :delete: - delete an existing application pool
+- :start: - start a application pool
+- :stop: - stop a application pool
+- :restart: - restart a application pool
+
+### Attribute Parameters
+
+- pool_name: name attribute. Specifies the name of the pool to create.
+- runtime_version: specifies what .NET version of the runtime to use.
+- pipeline_mode: specifies what pipeline mode to create the pool with
+
+### Example
+
+     #creates a new app pool
+     iis_pool 'myAppPool_v1_1' do
+         runtime_version "2.0"
+         pipeline_mode "Classic"
+         action :add
+     end
 
 Usage
 =====
@@ -154,6 +181,11 @@ Changes/Roadmap
 * resource/provider for managing IIS applications and application pools
 * resource/provider for managing IIS virtual directories
 * IIS 6.0 support
+
+## 1.0.2:
+
+* Ruby 1.9 compat fixes
+* ensure carriage returns are removed before applying regex
 
 ## 1.0.0:
 

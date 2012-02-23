@@ -35,6 +35,7 @@ template "/etc/rabbitmq/rabbitmq-env.conf" do
   owner "root"
   group "root"
   mode 0644
+  notifies :restart, "service[rabbitmq-server]"
 end
 
 case node[:platform]
@@ -57,4 +58,30 @@ when "redhat", "centos", "scientific"
   rpm_package "/tmp/rabbitmq-server-2.6.1-1.noarch.rpm" do
     action :install
   end
+end
+
+if node[:rabbitmq][:cluster]
+    # If this already exists, don't do anything
+    # Changing the cookie will stil have to be a manual process
+    template "/var/lib/rabbitmq/.erlang.cookie" do
+      source "doterlang.cookie.erb"
+      owner "rabbitmq"
+      group "rabbitmq"
+      mode 0400
+      not_if { File.exists? "/var/lib/rabbitmq/.erlang.cookie" }
+    end
+end
+
+template "/etc/rabbitmq/rabbitmq.config" do
+  source "rabbitmq.config.erb"
+  owner "root"
+  group "root"
+  mode 0644
+  notifies :restart, "service[rabbitmq-server]"
+end
+
+service "rabbitmq-server" do
+  stop_command "/usr/sbin/rabbitmqctl stop"
+  supports :status => true, :restart => true
+  action [ :enable, :start ]
 end
